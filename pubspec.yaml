@@ -1,0 +1,49 @@
+name: pocket_agent
+description: >
+  Autonomous, offline, on-device AI coding agent for Android. Runs a
+  quantized Qwen2.5-Coder-1.5B model locally via llama.cpp and executes a
+  background ReAct (Reason/Act/Observe) loop with human-in-the-loop
+  approval for risky actions.
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # LLM inference: llama.cpp bindings for on-device GGUF inference.
+  flutter_llama: ^0.1.1
+
+  # Keeps the ReAct loop alive as an Android foreground service.
+  flutter_background_service: ^5.0.10
+
+  # Lock-screen approval notifications with action buttons.
+  flutter_local_notifications: ^17.2.2
+
+  # Runtime permissions (notifications, storage).
+  permission_handler: ^11.3.1
+
+  # Model file / workspace / second brain storage locations.
+  path_provider: ^2.1.4
+  path: ^1.9.0
+
+  # Lightweight cross-isolate state & IPC (approval flags, human replies).
+  shared_preferences: ^2.3.2
+
+  # Renders agent THOUGHT/log output as markdown in the chat-like UI.
+  flutter_markdown: ^0.7.4+1
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/models/

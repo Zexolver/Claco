@@ -1,0 +1,6 @@
+# Copy this file to android/local.properties and fill in your local paths.
+# local.properties itself is git-ignored because it's machine-specific.
+sdk.dir=/path/to/Android/sdk
+flutter.sdk=/path/to/flutter
+flutter.versionCode=1
+flutter.versionName=0.1.0

@@ -1,0 +1,71 @@
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
+/// Sandbox for the `read_file` / `write_file` tools (spec 4.2). All paths
+/// are resolved relative to a single workspace directory under app storage
+/// so the agent can never read or write outside its sandbox.
+class WorkspaceService {
+  WorkspaceService._();
+  static final WorkspaceService instance = WorkspaceService._();
+
+  Directory? _workspaceDir;
+
+  Future<Directory> _dir() async {
+    if (_workspaceDir != null) return _workspaceDir!;
+    final docsDir = await getApplicationDocumentsDirectory();
+    final dir = Directory('${docsDir.path}/workspace');
+    await dir.create(recursive: true);
+    _workspaceDir = dir;
+    return dir;
+  }
+
+  /// Resolves [relativePath] under the workspace root, rejecting any path
+  /// that would escape it (e.g. via `..`).
+  Future<File> _resolve(String relativePath) async {
+    final dir = await _dir();
+    final normalized = p.normalize(p.join(dir.path, relativePath));
+    if (!p.isWithin(dir.path, normalized) && normalized != dir.path) {
+      throw ArgumentError('Path escapes workspace sandbox: $relativePath');
+    }
+    return File(normalized);
+  }
+
+  Future<String> readFile(String relativePath) async {
+    try {
+      final file = await _resolve(relativePath);
+      if (!file.existsSync()) {
+        return 'ERROR: file not found: $relativePath';
+      }
+      return file.readAsStringSync();
+    } catch (e) {
+      return 'ERROR: $e';
+    }
+  }
+
+  Future<String> writeFile(String relativePath, String contents) async {
+    try {
+      final file = await _resolve(relativePath);
+      await file.create(recursive: true);
+      await file.writeAsString(contents);
+      return 'OK: wrote ${contents.length} chars to $relativePath';
+    } catch (e) {
+      return 'ERROR: $e';
+    }
+  }
+
+  /// Short one-line description of workspace contents, fed back into the
+  /// prompt as WORKSPACE_STATE.
+  Future<String> describeState() async {
+    final dir = await _dir();
+    final entries = dir
+        .listSync(recursive: true)
+        .whereType<File>()
+        .map((f) => p.relative(f.path, from: dir.path))
+        .toList()
+      ..sort();
+    if (entries.isEmpty) return 'empty workspace';
+    return 'files: ${entries.join(', ')}';
+  }
+}
