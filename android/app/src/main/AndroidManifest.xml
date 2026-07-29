@@ -33,18 +33,8 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- flutter_background_service foreground service -->
-        <service
-            android:name="id.flutter.flutter_background_service.BackgroundService"
-            android:foregroundServiceType="dataSync"
-            android:exported="false" />
-
-        <receiver android:name="id.flutter.flutter_background_service.BootReceiver"
-            android:enabled="true"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED"/>
-            </intent-filter>
-        </receiver>
+        <!-- flutter_background_service_android's own AndroidManifest.xml
+             already declares BackgroundService/BootReceiver (exported=true);
+             redeclaring them here just conflicts with theirs at merge time. -->
     </application>
 </manifest>
