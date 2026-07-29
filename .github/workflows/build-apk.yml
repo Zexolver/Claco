@@ -22,6 +22,9 @@ jobs:
         with:
           channel: stable
 
+      - name: Install CMake 3.18.1 (pinned by flutter_llama's native build)
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "cmake;3.18.1"
+
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
