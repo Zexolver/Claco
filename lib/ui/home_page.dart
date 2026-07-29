@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/storage_keys.dart';
 import '../models/agent_state.dart';
 import '../models/log_entry.dart';
+import 'model_manager_page.dart';
 import 'widgets/agent_log_view.dart';
 import 'widgets/approval_banner.dart';
 import 'widgets/task_input_bar.dart';
@@ -99,6 +100,16 @@ class _HomePageState extends State<HomePage> {
     await prefs.setString(StorageKeys.humanReply, reply);
   }
 
+  Future<void> _openModelManager() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ModelManagerPage()),
+    );
+    // The user may have picked a different model; tell a running loop to
+    // pick it up, and refresh the app-bar Loaded/Unloaded chip either way.
+    _service.invoke('reloadModel');
+    await _refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -107,7 +118,7 @@ class _HomePageState extends State<HomePage> {
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Chip(
+            child: ActionChip(
               avatar: Icon(
                 _modelLoaded ? Icons.check_circle : Icons.circle_outlined,
                 size: 16,
@@ -115,6 +126,7 @@ class _HomePageState extends State<HomePage> {
               ),
               label: Text(_modelLoaded ? 'Loaded' : 'Unloaded'),
               visualDensity: VisualDensity.compact,
+              onPressed: _openModelManager,
             ),
           ),
           IconButton(

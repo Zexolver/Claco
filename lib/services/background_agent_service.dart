@@ -100,6 +100,29 @@ void onServiceStart(ServiceInstance service) async {
       LogEntry(kind: LogKind.error, text: loadError),
     );
   }
+  var currentModelFileName = await llama.selectedModelFileName();
+
+  // Fired by the Model Manager after the user downloads/picks a
+  // different .gguf file, so a running loop doesn't need a full app
+  // restart to pick it up.
+  service.on('reloadModel').listen((event) async {
+    final newFileName = await llama.selectedModelFileName();
+    if (newFileName == currentModelFileName && llama.isLoaded) return;
+
+    final reloadPrefs = await SharedPreferences.getInstance();
+    await llama.unload();
+    final err = await llama.load();
+    currentModelFileName = newFileName;
+    await reloadPrefs.setBool(StorageKeys.modelLoaded, err == null);
+    await _appendLog(
+      reloadPrefs,
+      service,
+      LogEntry(
+        kind: err == null ? LogKind.system : LogKind.error,
+        text: err ?? 'Switched model to $newFileName',
+      ),
+    );
+  });
 
   String lastObservation = 'none yet';
 

@@ -22,4 +22,10 @@ class StorageKeys {
   /// bool: whether the background isolate successfully loaded the GGUF
   /// model. The UI polls this to render the app-bar Loaded/Unloaded status.
   static const modelLoaded = 'pocket_agent.model_loaded';
+
+  /// Which model is currently selected, set by the Model Manager once a
+  /// download finishes. Empty means "use the CLAUDE.md-recommended
+  /// default" (see HuggingFaceService.recommendedRepoId/recommendedFile).
+  static const selectedModelRepo = 'pocket_agent.selected_model_repo';
+  static const selectedModelFile = 'pocket_agent.selected_model_file';
 }

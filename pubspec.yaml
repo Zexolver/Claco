@@ -30,6 +30,9 @@ dependencies:
   path_provider: ^2.1.4
   path: ^1.9.0
 
+  # Searching and downloading GGUF models from the Hugging Face Hub.
+  http: ^1.2.2
+
   # Lightweight cross-isolate state & IPC (approval flags, human replies).
   shared_preferences: ^2.3.2
 

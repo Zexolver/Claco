@@ -5,6 +5,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Only used by the Model Manager to fetch a .gguf file from Hugging
+         Face; the ReAct loop's inference itself never touches the network. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:label="Pocket Agent"
