@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:ui' show DartPluginRegistrant;
 
 import 'package:flutter_background_service/flutter_background_service.dart';
@@ -14,6 +13,7 @@ import '../models/log_entry.dart';
 import 'brain_service.dart';
 import 'llama_service.dart';
 import 'notification_service.dart';
+import 'session_service.dart';
 import 'workspace_service.dart';
 
 /// Iteration delay enforced between every loop pass (spec 4.1.4) to avoid
@@ -49,6 +49,7 @@ void onServiceStart(ServiceInstance service) async {
 
   final notifications = NotificationService.instance;
   await notifications.init();
+  final sessions = SessionService.instance;
 
   if (service is AndroidServiceInstance) {
     service.setForegroundNotificationInfo(
@@ -59,19 +60,52 @@ void onServiceStart(ServiceInstance service) async {
 
   var stopRequested = false;
 
+  // Which chat the loop is actively working, or null when idle. Only one
+  // chat's agent can run at a time — one model, one service — so a
+  // setTask for a different chat while this is non-null gets rejected
+  // (see the 'setTask' listener below).
+  String? runningSessionId;
+
   service.on('stopLoop').listen((event) async {
     stopRequested = true;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(StorageKeys.stopRequested, true);
+
+    final sid = runningSessionId;
+    if (sid != null) {
+      final state = sessions
+          .loadStateWith(prefs, sid)
+          .copyWith(status: AgentStatus.stopped);
+      await sessions.persistState(prefs, sid, state);
+    }
+    runningSessionId = null;
+    await prefs.remove(StorageKeys.runningSessionId);
   });
 
   service.on('setTask').listen((event) async {
     final task = event?['task'] as String? ?? '';
-    if (task.isEmpty) return;
+    final sessionId = event?['sessionId'] as String? ?? '';
+    if (task.isEmpty || sessionId.isEmpty) return;
+
     final prefs = await SharedPreferences.getInstance();
+
+    if (runningSessionId != null && runningSessionId != sessionId) {
+      await sessions.appendLog(
+        prefs,
+        sessionId,
+        LogEntry(
+          kind: LogKind.error,
+          text: 'Agent is busy in another chat. Stop it there before '
+              'starting a task in this one.',
+        ),
+      );
+      return;
+    }
+
     await prefs.setBool(StorageKeys.stopRequested, false);
     stopRequested = false;
-    var state = await _loadState(prefs);
+
+    var state = sessions.loadStateWith(prefs, sessionId);
     state = state.copyWith(
       status: AgentStatus.running,
       currentTask: task,
@@ -79,27 +113,25 @@ void onServiceStart(ServiceInstance service) async {
       pendingParams: '',
       iteration: 0,
     );
-    await _persistState(prefs, state);
-    await _appendLog(
+    await sessions.persistState(prefs, sessionId, state);
+    await sessions.appendLog(
       prefs,
-      service,
+      sessionId,
       LogEntry(kind: LogKind.system, text: 'New task assigned: $task'),
     );
+    await sessions.touchSession(sessionId, autoTitleFromTask: task);
+
+    runningSessionId = sessionId;
+    await prefs.setString(StorageKeys.runningSessionId, sessionId);
   });
 
   final prefs = await SharedPreferences.getInstance();
   await prefs.setBool(StorageKeys.stopRequested, false);
+  await prefs.remove(StorageKeys.runningSessionId);
 
   final llama = LlamaService.instance;
   final loadError = await llama.load();
   await prefs.setBool(StorageKeys.modelLoaded, loadError == null);
-  if (loadError != null) {
-    await _appendLog(
-      prefs,
-      service,
-      LogEntry(kind: LogKind.error, text: loadError),
-    );
-  }
   var currentModelFileName = await llama.selectedModelFileName();
 
   // Fired by the Model Manager after the user downloads/picks a
@@ -109,19 +141,11 @@ void onServiceStart(ServiceInstance service) async {
     final newFileName = await llama.selectedModelFileName();
     if (newFileName == currentModelFileName && llama.isLoaded) return;
 
-    final reloadPrefs = await SharedPreferences.getInstance();
     await llama.unload();
     final err = await llama.load();
     currentModelFileName = newFileName;
+    final reloadPrefs = await SharedPreferences.getInstance();
     await reloadPrefs.setBool(StorageKeys.modelLoaded, err == null);
-    await _appendLog(
-      reloadPrefs,
-      service,
-      LogEntry(
-        kind: err == null ? LogKind.system : LogKind.error,
-        text: err ?? 'Switched model to $newFileName',
-      ),
-    );
   });
 
   String lastObservation = 'none yet';
@@ -131,12 +155,13 @@ void onServiceStart(ServiceInstance service) async {
     stopRequested = freshPrefs.getBool(StorageKeys.stopRequested) ?? false;
     if (stopRequested) break;
 
-    var state = await _loadState(freshPrefs);
-
-    if (state.currentTask.isEmpty || !llama.isLoaded) {
+    final sessionId = runningSessionId;
+    if (sessionId == null || !llama.isLoaded) {
       await Future.delayed(kLoopDelay);
       continue;
     }
+
+    var state = sessions.loadStateWith(freshPrefs, sessionId);
 
     _setForegroundText(service, 'Thinking about: ${state.currentTask}');
 
@@ -150,9 +175,9 @@ void onServiceStart(ServiceInstance service) async {
     try {
       rawOutput = await llama.generateTurn(prompt);
     } catch (e) {
-      await _appendLog(
+      await sessions.appendLog(
         freshPrefs,
-        service,
+        sessionId,
         LogEntry(kind: LogKind.error, text: 'Inference failed: $e'),
       );
       await Future.delayed(kLoopDelay);
@@ -162,9 +187,9 @@ void onServiceStart(ServiceInstance service) async {
     final response = ReactResponseParser.parse(rawOutput);
 
     if (response.thought.isNotEmpty) {
-      await _appendLog(
+      await sessions.appendLog(
         freshPrefs,
-        service,
+        sessionId,
         LogEntry(kind: LogKind.thought, text: response.thought),
       );
     }
@@ -173,9 +198,9 @@ void onServiceStart(ServiceInstance service) async {
       lastObservation =
           'Your last response could not be parsed. Respond ONLY with '
           '<THOUGHT>...</THOUGHT><ACTION>...</ACTION><PARAMS>...</PARAMS>.';
-      await _appendLog(
+      await sessions.appendLog(
         freshPrefs,
-        service,
+        sessionId,
         LogEntry(
           kind: LogKind.error,
           text: 'Malformed response (raw action: "${response.rawAction}")',
@@ -186,9 +211,9 @@ void onServiceStart(ServiceInstance service) async {
     }
 
     final tool = response.tool!;
-    await _appendLog(
+    await sessions.appendLog(
       freshPrefs,
-      service,
+      sessionId,
       LogEntry(
         kind: LogKind.action,
         text: '${tool.wireName}: ${response.params}',
@@ -198,9 +223,12 @@ void onServiceStart(ServiceInstance service) async {
     if (tool == AgentTool.done) {
       await notifications.showDone(response.params);
       state = state.copyWith(status: AgentStatus.stopped);
-      await _persistState(freshPrefs, state);
-      _setForegroundText(service, 'Done: ${response.params}');
-      break;
+      await sessions.persistState(freshPrefs, sessionId, state);
+      _setForegroundText(service, 'Idle');
+      runningSessionId = null;
+      await freshPrefs.remove(StorageKeys.runningSessionId);
+      lastObservation = 'none yet';
+      continue;
     }
 
     final needsPause = tool.isRisky || tool.alwaysPauses;
@@ -212,7 +240,7 @@ void onServiceStart(ServiceInstance service) async {
         pendingTool: tool.wireName,
         pendingParams: response.params,
       );
-      await _persistState(freshPrefs, state);
+      await sessions.persistState(freshPrefs, sessionId, state);
 
       if (tool.alwaysPauses) {
         await notifications.showAskHuman(response.params);
@@ -234,9 +262,9 @@ void onServiceStart(ServiceInstance service) async {
         break;
       }
       lastObservation = outcome;
-      await _appendLog(
+      await sessions.appendLog(
         freshPrefs,
-        service,
+        sessionId,
         LogEntry(kind: LogKind.observation, text: outcome),
       );
 
@@ -248,9 +276,9 @@ void onServiceStart(ServiceInstance service) async {
     } else {
       final observation = await _execute(tool, response.params);
       lastObservation = observation;
-      await _appendLog(
+      await sessions.appendLog(
         freshPrefs,
-        service,
+        sessionId,
         LogEntry(kind: LogKind.observation, text: observation),
       );
     }
@@ -260,7 +288,7 @@ void onServiceStart(ServiceInstance service) async {
       workspaceState: workspaceState,
       iteration: state.iteration + 1,
     );
-    await _persistState(freshPrefs, state);
+    await sessions.persistState(freshPrefs, sessionId, state);
     _setForegroundText(service, 'Iteration ${state.iteration}');
 
     await Future.delayed(kLoopDelay);
@@ -311,7 +339,9 @@ Future<String?> _waitForHumanDecision({
       final decision = prefs.getString(StorageKeys.approvalDecision);
       if (decision == 'approve') {
         await prefs.remove(StorageKeys.approvalDecision);
-        return _resumeApprovedAction(prefs);
+        final sessionId = prefs.getString(StorageKeys.runningSessionId);
+        if (sessionId == null) return 'Approved, but no running chat found.';
+        return _resumeApprovedAction(prefs, sessionId);
       } else if (decision == 'deny') {
         await prefs.remove(StorageKeys.approvalDecision);
         return 'User denied the action.';
@@ -321,50 +351,13 @@ Future<String?> _waitForHumanDecision({
   }
 }
 
-Future<String> _resumeApprovedAction(SharedPreferences prefs) async {
-  final state = await _loadState(prefs);
+Future<String> _resumeApprovedAction(
+    SharedPreferences prefs, String sessionId) async {
+  final state = SessionService.instance.loadStateWith(prefs, sessionId);
   final tool = AgentTool.fromWireName(state.pendingTool);
   if (tool == null) return 'Approved, but no pending action found.';
   final result = await _execute(tool, state.pendingParams);
   return 'User approved. $result';
-}
-
-Future<AgentState> _loadState(SharedPreferences prefs) async {
-  final raw = prefs.getString(StorageKeys.agentState);
-  if (raw == null) return AgentState.initial();
-  try {
-    return AgentState.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-  } catch (_) {
-    return AgentState.initial();
-  }
-}
-
-Future<void> _persistState(SharedPreferences prefs, AgentState state) async {
-  await prefs.setString(StorageKeys.agentState, jsonEncode(state.toJson()));
-}
-
-const int _maxLogEntries = 300;
-
-Future<void> _appendLog(
-  SharedPreferences prefs,
-  ServiceInstance service,
-  LogEntry entry,
-) async {
-  final raw = prefs.getString(StorageKeys.agentLog);
-  final list = <dynamic>[];
-  if (raw != null) {
-    try {
-      list.addAll(jsonDecode(raw) as List<dynamic>);
-    } catch (_) {
-      // Corrupt log, start fresh rather than crash the loop.
-    }
-  }
-  list.add(entry.toJson());
-  final trimmed = list.length > _maxLogEntries
-      ? list.sublist(list.length - _maxLogEntries)
-      : list;
-  await prefs.setString(StorageKeys.agentLog, jsonEncode(trimmed));
-  service.invoke('logUpdate', {'entry': entry.toJson()});
 }
 
 void _setForegroundText(ServiceInstance service, String text) {

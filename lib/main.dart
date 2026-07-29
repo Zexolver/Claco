@@ -3,7 +3,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import 'services/background_agent_service.dart';
 import 'services/notification_service.dart';
-import 'ui/home_page.dart';
+import 'ui/chat_list_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,7 +26,7 @@ class PocketAgentApp extends StatelessWidget {
         brightness: Brightness.dark,
         colorSchemeSeed: const Color(0xFF00E676),
       ),
-      home: const HomePage(),
+      home: const ChatListPage(),
     );
   }
 }

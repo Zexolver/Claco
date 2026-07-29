@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
@@ -8,30 +7,48 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/storage_keys.dart';
 import '../models/agent_state.dart';
 import '../models/log_entry.dart';
+import '../services/session_service.dart';
 import 'model_manager_page.dart';
 import 'widgets/agent_log_view.dart';
 import 'widgets/approval_banner.dart';
 import 'widgets/task_input_bar.dart';
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+/// One chat's transcript + controls — the "Claude Code" half of the app
+/// (an agent working a task), scoped to a single conversation out of
+/// however many the user has (the "Claude mobile app" half, see
+/// ChatListPage).
+class ChatPage extends StatefulWidget {
+  const ChatPage(
+      {super.key, required this.sessionId, required this.initialTitle});
+
+  final String sessionId;
+  final String initialTitle;
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<ChatPage> createState() => _ChatPageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _ChatPageState extends State<ChatPage> {
   final _service = FlutterBackgroundService();
+  final _sessions = SessionService.instance;
   Timer? _pollTimer;
 
   AgentState _state = AgentState.initial();
   List<LogEntry> _log = [];
   bool _modelLoaded = false;
   bool _serviceRunning = false;
+  String? _runningSessionId;
+  String _title = '';
+
+  bool get _isThisSessionRunning => _runningSessionId == widget.sessionId;
+  bool get _isBusyElsewhere =>
+      _runningSessionId != null && _runningSessionId != widget.sessionId;
 
   @override
   void initState() {
     super.initState();
+    _title = widget.initialTitle;
+    _sessions.setActiveSessionId(widget.sessionId);
     _pollTimer = Timer.periodic(const Duration(seconds: 1), (_) => _refresh());
     _refresh();
   }
@@ -45,26 +62,8 @@ class _HomePageState extends State<HomePage> {
   Future<void> _refresh() async {
     final prefs = await SharedPreferences.getInstance();
     final running = await _service.isRunning();
-
-    AgentState state = _state;
-    final rawState = prefs.getString(StorageKeys.agentState);
-    if (rawState != null) {
-      try {
-        state =
-            AgentState.fromJson(jsonDecode(rawState) as Map<String, dynamic>);
-      } catch (_) {}
-    }
-
-    List<LogEntry> log = _log;
-    final rawLog = prefs.getString(StorageKeys.agentLog);
-    if (rawLog != null) {
-      try {
-        final decoded = jsonDecode(rawLog) as List<dynamic>;
-        log = decoded
-            .map((e) => LogEntry.fromJson(e as Map<String, dynamic>))
-            .toList();
-      } catch (_) {}
-    }
+    final state = _sessions.loadStateWith(prefs, widget.sessionId);
+    final log = _sessions.loadLogWith(prefs, widget.sessionId);
 
     if (!mounted) return;
     setState(() {
@@ -72,6 +71,7 @@ class _HomePageState extends State<HomePage> {
       _log = log;
       _modelLoaded = prefs.getBool(StorageKeys.modelLoaded) ?? false;
       _serviceRunning = running;
+      _runningSessionId = prefs.getString(StorageKeys.runningSessionId);
     });
   }
 
@@ -81,7 +81,7 @@ class _HomePageState extends State<HomePage> {
       // Give the isolate a moment to spin up before it can receive events.
       await Future.delayed(const Duration(milliseconds: 500));
     }
-    _service.invoke('setTask', {'task': task});
+    _service.invoke('setTask', {'task': task, 'sessionId': widget.sessionId});
   }
 
   Future<void> _stopAgent() async {
@@ -104,17 +104,43 @@ class _HomePageState extends State<HomePage> {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const ModelManagerPage()),
     );
-    // The user may have picked a different model; tell a running loop to
-    // pick it up, and refresh the app-bar Loaded/Unloaded chip either way.
     _service.invoke('reloadModel');
     await _refresh();
+  }
+
+  Future<void> _renameChat() async {
+    final controller = TextEditingController(text: _title);
+    final newTitle = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename chat'),
+        content: TextField(controller: controller, autofocus: true),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (newTitle == null || newTitle.isEmpty) return;
+    await _sessions.renameSession(widget.sessionId, newTitle);
+    if (!mounted) return;
+    setState(() => _title = newTitle);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Pocket Agent'),
+        title: GestureDetector(
+          onTap: _renameChat,
+          child: Text(_title, overflow: TextOverflow.ellipsis),
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -132,7 +158,7 @@ class _HomePageState extends State<HomePage> {
           IconButton(
             tooltip: 'Stop agent',
             icon: const Icon(Icons.stop_circle_outlined),
-            onPressed: _serviceRunning ? _stopAgent : null,
+            onPressed: _isThisSessionRunning ? _stopAgent : null,
           ),
         ],
       ),
@@ -147,6 +173,21 @@ class _HomePageState extends State<HomePage> {
                   'Task: ${_state.currentTask} · ${_state.status.name} · iter ${_state.iteration}',
                   style: const TextStyle(color: Colors.white60, fontSize: 12),
                 ),
+              ),
+            ),
+          if (_isBusyElsewhere)
+            Container(
+              margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white10,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'The agent is busy in another chat right now. '
+                'Stop it there before assigning a task here — only one '
+                'chat can run at a time.',
+                style: TextStyle(color: Colors.white70, fontSize: 12),
               ),
             ),
           ApprovalBanner(

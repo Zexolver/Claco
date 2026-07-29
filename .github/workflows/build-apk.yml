@@ -35,11 +35,11 @@ jobs:
           name: pocket-agent-debug-apk
           path: build/app/outputs/flutter-apk/app-debug.apk
 
-      - name: Publish to the Candy-Cooler tag/release
+      - name: Publish to the Dead-Dog tag/release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: Candy-Cooler
-          name: Candy Cooler
+          tag_name: Dead-Dog
+          name: Dead Dog
           files: build/app/outputs/flutter-apk/app-debug.apk
           generate_release_notes: false
           make_latest: true

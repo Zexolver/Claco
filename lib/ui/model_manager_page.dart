@@ -8,6 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/storage_keys.dart';
 import '../models/hf_model.dart';
 import '../services/huggingface_service.dart';
+import '../services/settings_service.dart';
+import 'settings_page.dart';
 
 /// Lets the user pick which GGUF model the agent runs. Defaults to the
 /// exact model CLAUDE.md recommends; everything else is opt-in via a
@@ -26,6 +28,7 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
 
   String? _selectedFileName;
   Directory? _modelsDir;
+  bool _networkEnabled = true;
 
   bool _searching = false;
   String? _searchError;
@@ -58,11 +61,14 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
   Future<void> _loadState() async {
     final prefs = await SharedPreferences.getInstance();
     final docsDir = await getApplicationDocumentsDirectory();
+    final networkEnabled =
+        await SettingsService.instance.networkDownloadsEnabled();
     if (!mounted) return;
     setState(() {
       _selectedFileName = prefs.getString(StorageKeys.selectedModelFile) ??
           HuggingFaceService.recommendedFile;
       _modelsDir = Directory('${docsDir.path}/models');
+      _networkEnabled = networkEnabled;
     });
   }
 
@@ -86,6 +92,7 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
 
   Future<void> _download(
       {required String repoId, required HfGgufFile file}) async {
+    if (!_networkEnabled) return;
     final dir = _modelsDir;
     if (dir == null) return;
     final fileName = p.basename(file.path);
@@ -127,6 +134,7 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
   }
 
   Future<void> _search() async {
+    if (!_networkEnabled) return;
     final query = _searchController.text.trim();
     if (query.isEmpty) return;
     setState(() {
@@ -147,6 +155,7 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
   }
 
   Future<void> _expandRepo(String repoId) async {
+    if (!_networkEnabled) return;
     if (_expandedRepoId == repoId) {
       setState(() => _expandedRepoId = null);
       return;
@@ -176,6 +185,38 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
+          if (!_networkEnabled) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white10,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.wifi_off, size: 18, color: Colors.white70),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Downloads are disabled in Settings. Already-downloaded '
+                      'models can still be used.',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const SettingsPage()),
+                      );
+                      _loadState();
+                    },
+                    child: const Text('Settings'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           Text('Recommended', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 6),
           _buildRecommendedCard(),
@@ -188,6 +229,7 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
               Expanded(
                 child: TextField(
                   controller: _searchController,
+                  enabled: _networkEnabled,
                   textInputAction: TextInputAction.search,
                   onSubmitted: (_) => _search(),
                   decoration: const InputDecoration(
@@ -199,7 +241,7 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
               ),
               const SizedBox(width: 8),
               FilledButton(
-                onPressed: _searching ? null : _search,
+                onPressed: (_searching || !_networkEnabled) ? null : _search,
                 child: _searching
                     ? const SizedBox(
                         width: 16,
@@ -267,7 +309,7 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
                       ),
                       child: const Text('Use this model'),
                     )
-                  else if (!downloaded)
+                  else if (!downloaded && _networkEnabled)
                     FilledButton.icon(
                       onPressed: () => _download(
                         repoId: HuggingFaceService.recommendedRepoId,
@@ -275,6 +317,11 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
                       ),
                       icon: const Icon(Icons.download),
                       label: const Text('Download'),
+                    )
+                  else if (!downloaded && !_networkEnabled)
+                    const Text(
+                      'Downloads disabled in Settings',
+                      style: TextStyle(color: Colors.white38, fontSize: 12),
                     ),
                 ],
               ),

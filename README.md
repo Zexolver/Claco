@@ -15,17 +15,21 @@ follows.
 ```
 lib/
   core/                      Fixed system prompt, tool enum, THOUGHT/ACTION/PARAMS parser, storage keys
-  models/                    AgentState, LogEntry, HfModelSummary/HfGgufFile
+  models/                    AgentState, LogEntry, ChatSessionMeta, HfModelSummary/HfGgufFile
   services/
     llama_service.dart       flutter_llama wrapper (2048 ctx, 4 threads, temp 0.15)
     huggingface_service.dart Search Hugging Face, list .gguf files, stream a download
+    session_service.dart     CRUD for chats + their per-chat state/log
+    settings_service.dart    App-wide toggles (network downloads on/off)
     workspace_service.dart   Sandboxed read_file / write_file
     brain_service.dart       Second Brain (knowledge_graph.md) append/search
     notification_service.dart  Approve/Deny + reply-input notifications
     background_agent_service.dart  The ReAct loop (flutter_background_service)
   ui/
-    home_page.dart           App bar (model status), transcript, input, stop
+    chat_list_page.dart      Home screen: the list of chats, "+" to start one
+    chat_page.dart            One chat's transcript, model chip, input, stop
     model_manager_page.dart  Recommended model + Hugging Face search/download
+    settings_page.dart       Network-downloads toggle
     widgets/                 AgentLogView, ApprovalBanner, TaskInputBar
 ```
 
@@ -48,6 +52,26 @@ it's the IPC layer, polled by whichever side needs to react.
 The spec's system prompt has a single free-text `PARAMS` slot, so
 `write_file` uses: first line = file path, everything after the first
 newline = file contents (see `ReactResponseParser.splitWriteFileParams`).
+
+### Chats
+
+The home screen is a chat list, not one running conversation — tap "+"
+to start a new chat, tap a row to open it. Every chat keeps its own
+transcript and task independently, but only one chat's agent loop can
+actually be running at a time (one on-device model, one background
+service); starting a task in a chat while another is busy logs a
+message telling you to stop the other one first. A chat currently
+running shows a green "Running" chip in the list.
+
+### Settings
+
+The gear icon on the chat list opens Settings, currently just one
+toggle: **Allow downloading resources**, on by default. It gates every
+network call the app makes (today: only the Model Manager's Hugging
+Face search/download) — turn it off if you're fully offline or on a
+limited data plan. Already-downloaded models keep working either way;
+the ReAct loop itself never touches the network regardless of this
+setting.
 
 ### Getting the model
 
