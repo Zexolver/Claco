@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Only needed for the Dart VM debug/profile connection; the release
+         build stays fully offline. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>

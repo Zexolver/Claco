@@ -1,0 +1,46 @@
+name: claco
+description: >
+  Claco - an autonomous, on-device AI coding agent for Android. Runs a
+  quantized Qwen2.5-Coder-1.5B model fully offline via llama.cpp and
+  operates a background Reason/Act/Observe loop with human-in-the-loop
+  approvals delivered through lock screen notifications.
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # LLM inference: Dart FFI bindings to llama.cpp, runs Qwen2.5-Coder-1.5B
+  # (.gguf, Q4_K_M) fully on-device / offline.
+  llama_cpp_dart: ^0.2.2
+
+  # Keeps the ReAct loop alive as a foreground service while the app is
+  # backgrounded or the screen is off.
+  flutter_background_service: ^5.0.10
+
+  # Lock screen / system notifications with actionable Approve/Deny buttons,
+  # used for the human-in-the-loop approval gate.
+  flutter_local_notifications: ^17.2.3
+
+  # Resolves on-device storage paths for the model file, the workspace and
+  # the agent's "Second Brain".
+  path_provider: ^2.1.4
+
+  # Renders <THOUGHT>/<ACTION> log entries and the Second Brain as markdown.
+  flutter_markdown: ^0.7.4+1
+
+  # Persists small bits of UI/agent state (approval flags, last task).
+  shared_preferences: ^2.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
