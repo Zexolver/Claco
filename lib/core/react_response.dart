@@ -68,4 +68,16 @@ class ReactResponseParser {
     final contents = params.substring(newlineIndex + 1);
     return (path, contents);
   }
+
+  /// Splits a download_resource PARAMS blob into (url, destPath) per
+  /// [kDownloadResourceParamHint]'s convention: first line is the URL,
+  /// an optional second line is the save-as path.
+  static (String url, String? destPath) splitDownloadResourceParams(
+      String params) {
+    final newlineIndex = params.indexOf('\n');
+    if (newlineIndex == -1) return (params.trim(), null);
+    final url = params.substring(0, newlineIndex).trim();
+    final destPath = params.substring(newlineIndex + 1).trim();
+    return (url, destPath.isEmpty ? null : destPath);
+  }
 }

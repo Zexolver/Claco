@@ -1,8 +1,9 @@
-name: pocket_agent
+name: pagai
 description: >
-  Autonomous, offline, on-device AI coding agent for Android. Runs a
-  quantized Qwen2.5-Coder-1.5B model locally via llama.cpp and executes a
-  background ReAct (Reason/Act/Observe) loop with human-in-the-loop
+  Pagai (Pocket Agentic AI): an autonomous, on-device AI coding agent for
+  Android. Runs a quantized Qwen2.5-Coder-1.5B model locally via
+  llama.cpp and executes a background ReAct (Reason/Act/Observe) loop,
+  fetching whatever it needs to finish a task with human-in-the-loop
   approval for risky actions.
 publish_to: "none"
 version: 0.1.0

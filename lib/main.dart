@@ -10,16 +10,16 @@ Future<void> main() async {
   await NotificationService.instance.init();
   await initializeBackgroundService();
   await Permission.notification.request();
-  runApp(const PocketAgentApp());
+  runApp(const PagaiApp());
 }
 
-class PocketAgentApp extends StatelessWidget {
-  const PocketAgentApp({super.key});
+class PagaiApp extends StatelessWidget {
+  const PagaiApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Pocket Agent',
+      title: 'Pagai',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,

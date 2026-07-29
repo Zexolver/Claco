@@ -13,7 +13,7 @@ Your goal is to complete the user's task. You have access to a "Second Brain" di
 
 You MUST respond ONLY in the following format:
 <THOUGHT>Explain what you need to do next</THOUGHT>
-<ACTION>Choose ONE: read_file, write_file, search_brain, write_brain, ask_human, done</ACTION>
+<ACTION>Choose ONE: read_file, write_file, search_brain, write_brain, download_resource, ask_human, done</ACTION>
 <PARAMS>The file path, search query, or text to write</PARAMS>
 <|im_end|>''';
 
@@ -23,6 +23,14 @@ You MUST respond ONLY in the following format:
 const String kWriteFileParamHint =
     'For write_file, PARAMS must be the file path on the first line, '
     'then a newline, then the full file contents.';
+
+/// Same one-slot problem as write_file: download_resource needs a URL and
+/// an optional destination path. Convention: first line is the URL,
+/// second line (optional) is where to save it in the workspace.
+const String kDownloadResourceParamHint =
+    'For download_resource, PARAMS must be the http(s) URL on the first '
+    'line, then optionally a second line with the workspace path to save '
+    'it as (defaults to the URL\'s filename).';
 
 String buildTurnPrompt({
   required String task,
@@ -36,6 +44,7 @@ String buildTurnPrompt({
     ..writeln('WORKSPACE_STATE: $workspaceState')
     ..writeln('LAST_OBSERVATION: $lastObservation')
     ..writeln(kWriteFileParamHint)
+    ..writeln(kDownloadResourceParamHint)
     ..writeln('<|im_end|>')
     ..write('<|im_start|>assistant\n');
   return buffer.toString();

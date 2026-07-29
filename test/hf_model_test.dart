@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pocket_agent/models/hf_model.dart';
-import 'package:pocket_agent/services/huggingface_service.dart';
+import 'package:pagai/models/hf_model.dart';
+import 'package:pagai/services/huggingface_service.dart';
 
 void main() {
   group('HfModelSummary', () {

@@ -114,7 +114,7 @@ class _ChatListPageState extends State<ChatListPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Pocket Agent'),
+        title: const Text('Pagai'),
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),

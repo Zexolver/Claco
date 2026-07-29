@@ -5,12 +5,14 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Only used by the Model Manager to fetch a .gguf file from Hugging
-         Face; the ReAct loop's inference itself never touches the network. -->
+    <!-- Used by the Model Manager to fetch .gguf files from Hugging Face,
+         and by the agent's own download_resource tool; inference itself
+         never touches the network. Both are gated by the Settings
+         network-downloads toggle. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
-        android:label="Pocket Agent"
+        android:label="Pagai"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 

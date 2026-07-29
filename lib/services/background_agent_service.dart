@@ -14,6 +14,7 @@ import 'brain_service.dart';
 import 'llama_service.dart';
 import 'notification_service.dart';
 import 'session_service.dart';
+import 'settings_service.dart';
 import 'workspace_service.dart';
 
 /// Iteration delay enforced between every loop pass (spec 4.1.4) to avoid
@@ -35,7 +36,7 @@ Future<void> initializeBackgroundService() async {
       autoStart: false,
       isForegroundMode: true,
       notificationChannelId: _notificationChannelId,
-      initialNotificationTitle: 'Pocket Agent',
+      initialNotificationTitle: 'Pagai',
       initialNotificationContent: 'Idle',
       foregroundServiceNotificationId: 888,
     ),
@@ -53,7 +54,7 @@ void onServiceStart(ServiceInstance service) async {
 
   if (service is AndroidServiceInstance) {
     service.setForegroundNotificationInfo(
-      title: 'Pocket Agent',
+      title: 'Pagai',
       content: 'Idle',
     );
   }
@@ -310,6 +311,18 @@ Future<String> _execute(AgentTool tool, String params) async {
       return BrainService.instance.search(params);
     case AgentTool.writeBrain:
       return BrainService.instance.append(params);
+    case AgentTool.downloadResource:
+      final enabled = await SettingsService.instance.networkDownloadsEnabled();
+      if (!enabled) {
+        return 'ERROR: resource downloads are disabled in Settings '
+            '("Allow the agent to download resources"). Try completing '
+            'the task without it, or use ask_human to request it be '
+            'turned on.';
+      }
+      final (url, destPath) =
+          ReactResponseParser.splitDownloadResourceParams(params);
+      return WorkspaceService.instance
+          .downloadResource(url, destPath: destPath);
     case AgentTool.askHuman:
       return 'Waiting for human reply.';
     case AgentTool.done:
@@ -363,7 +376,7 @@ Future<String> _resumeApprovedAction(
 void _setForegroundText(ServiceInstance service, String text) {
   if (service is AndroidServiceInstance) {
     service.setForegroundNotificationInfo(
-      title: 'Pocket Agent',
+      title: 'Pagai',
       content: text,
     );
   }

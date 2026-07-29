@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pocket_agent/core/agent_tools.dart';
-import 'package:pocket_agent/core/react_response.dart';
+import 'package:pagai/core/agent_tools.dart';
+import 'package:pagai/core/react_response.dart';
 
 void main() {
   group('ReactResponseParser', () {
@@ -44,6 +44,20 @@ void main() {
       expect(path, 'notes.md');
       expect(contents, 'line one\nline two');
     });
+
+    test('splits download_resource params into url and optional destPath', () {
+      final (url, destPath) = ReactResponseParser.splitDownloadResourceParams(
+        'https://example.com/lib.tar.gz\nvendor/lib.tar.gz',
+      );
+      expect(url, 'https://example.com/lib.tar.gz');
+      expect(destPath, 'vendor/lib.tar.gz');
+
+      final (urlOnly, noDest) = ReactResponseParser.splitDownloadResourceParams(
+        'https://example.com/lib.tar.gz',
+      );
+      expect(urlOnly, 'https://example.com/lib.tar.gz');
+      expect(noDest, isNull);
+    });
   });
 
   group('AgentTool', () {
@@ -52,6 +66,17 @@ void main() {
       expect(AgentTool.readFile.isRisky, isFalse);
       expect(AgentTool.askHuman.alwaysPauses, isTrue);
       expect(AgentTool.done.alwaysPauses, isFalse);
+    });
+
+    test('download_resource is settings-gated, not a risky per-call approval',
+        () {
+      expect(AgentTool.downloadResource.isRisky, isFalse);
+      expect(AgentTool.downloadResource.alwaysPauses, isFalse);
+    });
+
+    test('download_resource round-trips through fromWireName', () {
+      expect(AgentTool.fromWireName('download_resource'),
+          AgentTool.downloadResource);
     });
 
     test('fromWireName is case-insensitive and rejects unknown tools', () {

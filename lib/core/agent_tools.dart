@@ -8,6 +8,7 @@ enum AgentTool {
   writeFile('write_file'),
   searchBrain('search_brain'),
   writeBrain('write_brain'),
+  downloadResource('download_resource'),
   askHuman('ask_human'),
   done('done');
 
@@ -25,6 +26,11 @@ enum AgentTool {
 
   /// Actions that must pause the loop and page the human before executing,
   /// per spec section 4.3 (destructive / irreversible workspace writes).
+  ///
+  /// download_resource is deliberately not risky: it's gated by the
+  /// Settings network-downloads toggle instead of a per-call approval,
+  /// so the agent can fetch what it needs autonomously (Claude-Code-style)
+  /// whenever that toggle is on.
   bool get isRisky => this == AgentTool.writeFile;
 
   /// Actions that always pause the loop regardless of risk, because they

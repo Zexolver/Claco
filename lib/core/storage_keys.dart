@@ -44,8 +44,9 @@ class StorageKeys {
   static const selectedModelFile = 'pocket_agent.selected_model_file';
 
   /// bool, default true: whether the app may reach the network to fetch
-  /// resources (currently just Hugging Face model downloads). Off for
-  /// fully-offline use or limited data plans — set in Settings.
+  /// resources — both the agent's own download_resource tool calls and
+  /// the Model Manager's Hugging Face downloads. Off for fully-offline
+  /// use or limited data plans — set in Settings.
   static const networkDownloadsEnabled =
       'pocket_agent.network_downloads_enabled';
 }

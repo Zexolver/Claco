@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:pocket_agent/models/agent_state.dart';
-import 'package:pocket_agent/models/log_entry.dart';
-import 'package:pocket_agent/services/session_service.dart';
+import 'package:pagai/models/agent_state.dart';
+import 'package:pagai/models/log_entry.dart';
+import 'package:pagai/services/session_service.dart';
 
 void main() {
   final sessions = SessionService.instance;

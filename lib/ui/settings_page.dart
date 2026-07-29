@@ -51,13 +51,14 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
                 SwitchListTile(
-                  title: const Text('Allow downloading resources'),
+                  title: const Text('Allow the agent to download resources'),
                   subtitle: const Text(
-                    'Lets the app fetch resources over the network — '
-                    'currently just GGUF models in the Model Manager. '
-                    'Turn this off if you\'re fully offline or on a '
-                    'limited data plan; the ReAct loop itself never '
-                    'needs the network either way.',
+                    'Lets the agent fetch whatever it decides it needs '
+                    'mid-task — docs, code, data files — via its '
+                    'download_resource tool, and lets the Model Manager '
+                    'fetch GGUF models. Turn this off if you\'re fully '
+                    'offline or on a limited data plan; already-downloaded '
+                    'files keep working either way.',
                   ),
                   value: _networkDownloadsEnabled,
                   onChanged: _setNetworkDownloadsEnabled,

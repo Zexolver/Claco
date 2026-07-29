@@ -1,4 +1,4 @@
-package com.pocketagent.app
+package com.pagai.app
 
 import io.flutter.embedding.android.FlutterActivity
 

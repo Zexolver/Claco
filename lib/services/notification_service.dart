@@ -41,7 +41,7 @@ class NotificationService {
     // already exist before the service starts on Android O+.
     const foregroundChannel = AndroidNotificationChannel(
       'pocket_agent_foreground',
-      'Pocket Agent running',
+      'Pagai running',
       description: 'Persistent notification while the agent loop is active',
       importance: Importance.low,
     );
