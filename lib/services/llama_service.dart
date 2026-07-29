@@ -46,16 +46,31 @@ class LlamaService {
     return '${docsDir.path}/models/$fileName';
   }
 
+  /// GGUF files start with this 4-byte ASCII magic. A model that fails
+  /// this check is corrupt or truncated (e.g. an interrupted download) —
+  /// llama.cpp's native parser aborts the whole process on malformed
+  /// input rather than returning a catchable error, so this must be
+  /// caught here, before ever handing the file to the native loader.
+  static const List<int> _ggufMagic = [0x47, 0x47, 0x55, 0x46]; // "GGUF"
+
+  /// Below this, a file can't plausibly be a real quantized LLM — almost
+  /// certainly a truncated or failed download.
+  static const int _minPlausibleModelBytes = 50 * 1024 * 1024;
+
   /// Returns null if the model weights are present and loadable, otherwise
   /// a human-readable reason the UI can surface (e.g. "file not found").
   Future<String?> load() async {
     final path = await _modelPath();
-    if (!File(path).existsSync()) {
+    final file = File(path);
+    if (!file.existsSync()) {
       return 'Model not found at $path.\n'
           'Open the Model Manager to download the recommended '
           '${HuggingFaceService.recommendedLabel} model, pick a different '
           'one from Hugging Face, or push a .gguf file there by hand.';
     }
+
+    final sanityError = await _sanityCheck(file);
+    if (sanityError != null) return sanityError;
 
     try {
       final ok = await _llama.loadModel(
@@ -72,6 +87,32 @@ class LlamaService {
       _loaded = false;
       return 'Failed to load model: $e';
     }
+  }
+
+  Future<String?> _sanityCheck(File file) async {
+    final size = await file.length();
+    if (size < _minPlausibleModelBytes) {
+      return 'Model file at ${file.path} is only $size bytes — too small '
+          'to be a real model. The download probably got interrupted; '
+          'delete it and re-download from the Model Manager.';
+    }
+
+    final raf = await file.open();
+    try {
+      final header = await raf.read(4);
+      if (header.length < 4 ||
+          header[0] != _ggufMagic[0] ||
+          header[1] != _ggufMagic[1] ||
+          header[2] != _ggufMagic[2] ||
+          header[3] != _ggufMagic[3]) {
+        return 'File at ${file.path} is not a valid GGUF file (bad '
+            'header). It may be corrupted or an interrupted download; '
+            'delete it and re-download from the Model Manager.';
+      }
+    } finally {
+      await raf.close();
+    }
+    return null;
   }
 
   /// Runs one generation turn and returns the full text once the model

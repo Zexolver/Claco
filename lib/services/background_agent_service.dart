@@ -133,11 +133,12 @@ void onServiceStart(ServiceInstance service) async {
   final llama = LlamaService.instance;
   final loadError = await llama.load();
   await prefs.setBool(StorageKeys.modelLoaded, loadError == null);
+  await prefs.setString(StorageKeys.modelLoadError, loadError ?? '');
   var currentModelFileName = await llama.selectedModelFileName();
 
-  // Fired by the Model Manager after the user downloads/picks a
-  // different .gguf file, so a running loop doesn't need a full app
-  // restart to pick it up.
+  // Fired by the Model Manager's "Load model" button (fresh start or
+  // retry) and after the user downloads/picks a different .gguf file,
+  // so a running loop doesn't need a full app restart to pick it up.
   service.on('reloadModel').listen((event) async {
     final newFileName = await llama.selectedModelFileName();
     if (newFileName == currentModelFileName && llama.isLoaded) return;
@@ -147,6 +148,7 @@ void onServiceStart(ServiceInstance service) async {
     currentModelFileName = newFileName;
     final reloadPrefs = await SharedPreferences.getInstance();
     await reloadPrefs.setBool(StorageKeys.modelLoaded, err == null);
+    await reloadPrefs.setString(StorageKeys.modelLoadError, err ?? '');
   });
 
   String lastObservation = 'none yet';

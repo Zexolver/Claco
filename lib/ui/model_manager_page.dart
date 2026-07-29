@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,11 +26,18 @@ class ModelManagerPage extends StatefulWidget {
 
 class _ModelManagerPageState extends State<ModelManagerPage> {
   final _hf = HuggingFaceService.instance;
+  final _service = FlutterBackgroundService();
   final _searchController = TextEditingController();
+  Timer? _pollTimer;
 
   String? _selectedFileName;
   Directory? _modelsDir;
   bool _networkEnabled = true;
+
+  bool _modelLoaded = false;
+  String _modelLoadError = '';
+  bool _serviceRunning = false;
+  bool _loadingModel = false;
 
   bool _searching = false;
   String? _searchError;
@@ -50,10 +59,13 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
   void initState() {
     super.initState();
     _loadState();
+    _pollTimer = Timer.periodic(
+        const Duration(seconds: 1), (_) => _refreshModelStatus());
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -70,6 +82,36 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
       _modelsDir = Directory('${docsDir.path}/models');
       _networkEnabled = networkEnabled;
     });
+    await _refreshModelStatus();
+  }
+
+  Future<void> _refreshModelStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final running = await _service.isRunning();
+    final loaded = prefs.getBool(StorageKeys.modelLoaded) ?? false;
+    final error = prefs.getString(StorageKeys.modelLoadError) ?? '';
+    if (!mounted) return;
+    setState(() {
+      _serviceRunning = running;
+      _modelLoaded = loaded;
+      _modelLoadError = error;
+      // Stop showing the spinner once the load attempt actually resolves.
+      if (_loadingModel && (loaded || error.isNotEmpty)) {
+        _loadingModel = false;
+      }
+    });
+  }
+
+  Future<void> _loadModel() async {
+    setState(() {
+      _loadingModel = true;
+      _modelLoadError = '';
+    });
+    if (!_serviceRunning) {
+      await _service.startService();
+    } else {
+      _service.invoke('reloadModel');
+    }
   }
 
   bool _isDownloaded(String fileName) {
@@ -185,6 +227,8 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
+          _buildStatusCard(),
+          const SizedBox(height: 12),
           if (!_networkEnabled) ...[
             Container(
               padding: const EdgeInsets.all(12),
@@ -260,6 +304,52 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
           const SizedBox(height: 8),
           ..._results.map(_buildRepoTile),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatusCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  _modelLoaded ? Icons.check_circle : Icons.circle_outlined,
+                  size: 18,
+                  color: _modelLoaded ? Colors.greenAccent : Colors.white54,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _modelLoaded ? 'Model loaded' : 'Model not loaded',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                if (_loadingModel)
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  FilledButton(
+                    onPressed: _loadModel,
+                    child: Text(_modelLoaded ? 'Reload' : 'Load model'),
+                  ),
+              ],
+            ),
+            if (_modelLoadError.isNotEmpty && !_loadingModel) ...[
+              const SizedBox(height: 8),
+              Text(
+                _modelLoadError,
+                style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

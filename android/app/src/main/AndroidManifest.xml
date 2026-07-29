@@ -39,7 +39,16 @@
             android:value="2" />
 
         <!-- flutter_background_service_android's own AndroidManifest.xml
-             already declares BackgroundService/BootReceiver (exported=true);
-             redeclaring them here just conflicts with theirs at merge time. -->
+             already declares this service (exported=true, matched here so
+             there's no merge conflict) but declares no foregroundServiceType
+             at all. Without one, Android 14+ throws
+             MissingForegroundServiceTypeException the instant the service
+             actually calls startForeground() - i.e. the moment the very
+             first task is assigned - crashing the whole app. This
+             redeclaration exists solely to add that type back. -->
+        <service
+            android:name="id.flutter.flutter_background_service.BackgroundService"
+            android:exported="true"
+            android:foregroundServiceType="dataSync" />
     </application>
 </manifest>

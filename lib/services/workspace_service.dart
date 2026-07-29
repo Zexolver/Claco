@@ -96,6 +96,7 @@ class WorkspaceService {
       if (response.statusCode != 200) {
         return 'ERROR: download failed with HTTP ${response.statusCode}';
       }
+      final total = response.contentLength ?? 0;
 
       await file.create(recursive: true);
       final sink = file.openWrite();
@@ -112,6 +113,12 @@ class WorkspaceService {
         }
       } finally {
         await sink.close();
+      }
+
+      // A dropped connection can end the stream cleanly without an
+      // exception, silently leaving a truncated file on disk otherwise.
+      if (total > 0 && received != total) {
+        throw StateError('download incomplete: got $received of $total bytes');
       }
       return 'OK: downloaded $received bytes to $relativePath';
     } catch (e) {

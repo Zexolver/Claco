@@ -37,6 +37,12 @@ class StorageKeys {
   /// model. The UI polls this to render the app-bar Loaded/Unloaded status.
   static const modelLoaded = 'pocket_agent.model_loaded';
 
+  /// Human-readable reason the last load attempt failed, or empty when
+  /// the model is loaded / nothing has been attempted yet. Set alongside
+  /// [modelLoaded] so a failure is visible instead of just "Unloaded"
+  /// with no explanation.
+  static const modelLoadError = 'pocket_agent.model_load_error';
+
   /// Which model is currently selected, set by the Model Manager once a
   /// download finishes. Empty means "use the CLAUDE.md-recommended
   /// default" (see HuggingFaceService.recommendedRepoId/recommendedFile).

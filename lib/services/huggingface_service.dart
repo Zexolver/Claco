@@ -124,6 +124,14 @@ class HuggingFaceService {
       } finally {
         await sink.close();
       }
+
+      // A dropped connection can end the stream cleanly without an
+      // exception, silently leaving a truncated file on disk otherwise.
+      if (total > 0 && received != total) {
+        throw HttpException(
+          'Download incomplete: got $received of $total bytes',
+        );
+      }
     } catch (e) {
       if (destFile.existsSync()) {
         await destFile.delete();

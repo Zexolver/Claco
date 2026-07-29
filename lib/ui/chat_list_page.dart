@@ -27,6 +27,7 @@ class _ChatListPageState extends State<ChatListPage> {
 
   List<ChatSessionMeta> _sessionList = [];
   bool _modelLoaded = false;
+  String _modelLoadError = '';
   String? _runningSessionId;
 
   @override
@@ -49,6 +50,7 @@ class _ChatListPageState extends State<ChatListPage> {
     setState(() {
       _sessionList = list;
       _modelLoaded = prefs.getBool(StorageKeys.modelLoaded) ?? false;
+      _modelLoadError = prefs.getString(StorageKeys.modelLoadError) ?? '';
       _runningSessionId = prefs.getString(StorageKeys.runningSessionId);
     });
   }
@@ -120,11 +122,25 @@ class _ChatListPageState extends State<ChatListPage> {
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: ActionChip(
               avatar: Icon(
-                _modelLoaded ? Icons.check_circle : Icons.circle_outlined,
+                _modelLoaded
+                    ? Icons.check_circle
+                    : _modelLoadError.isNotEmpty
+                        ? Icons.error_outline
+                        : Icons.circle_outlined,
                 size: 16,
-                color: _modelLoaded ? Colors.greenAccent : Colors.white54,
+                color: _modelLoaded
+                    ? Colors.greenAccent
+                    : _modelLoadError.isNotEmpty
+                        ? Colors.redAccent
+                        : Colors.white54,
               ),
-              label: Text(_modelLoaded ? 'Loaded' : 'Unloaded'),
+              label: Text(
+                _modelLoaded
+                    ? 'Loaded'
+                    : _modelLoadError.isNotEmpty
+                        ? 'Load failed'
+                        : 'Unloaded',
+              ),
               visualDensity: VisualDensity.compact,
               onPressed: _openModelManager,
             ),
