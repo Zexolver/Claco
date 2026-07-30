@@ -3,7 +3,16 @@ name: Build APK
 on:
   push:
     branches: [main]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      release_name:
+        description: >
+          Release codename shown in the GitHub Releases UI (e.g. "Dead Dog").
+          Reusing a name is fine - every run still gets its own version tag
+          and APK filename, so releases never collide or overwrite an older
+          download.
+        required: false
+        default: "Dead Dog"
 
 jobs:
   build:
@@ -30,16 +39,41 @@ jobs:
       - run: flutter test
       - run: flutter build apk --debug --build-number=${{ github.run_number }}
 
+      # Every build gets its own tag/version (run number + commit hash), even
+      # when the codename is reused, so each GitHub Release is a distinct,
+      # non-overwritten entry - which is also what lets Obtainium (and any
+      # other GitHub-releases update tracker) tell one build apart from the
+      # next instead of seeing a permanently "unchanged" release.
+      - name: Compute release metadata
+        id: meta
+        env:
+          RELEASE_NAME: ${{ github.event.inputs.release_name || 'Dead Dog' }}
+        run: |
+          short_sha="$(git rev-parse --short=7 HEAD)"
+          release_slug="$(echo "$RELEASE_NAME" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-*//; s/-*$//')"
+          version="0.1.0-${short_sha}"
+          tag="v${version}-${{ github.run_number }}"
+          apk_name="Pagai-${release_slug}-${version}.apk"
+          echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "apk_name=${apk_name}" >> "$GITHUB_OUTPUT"
+          echo "release_title=${RELEASE_NAME} (${short_sha})" >> "$GITHUB_OUTPUT"
+
+      - name: Rename APK to include release name + commit hash
+        run: |
+          cp build/app/outputs/flutter-apk/app-debug.apk \
+             "build/app/outputs/flutter-apk/${{ steps.meta.outputs.apk_name }}"
+
       - uses: actions/upload-artifact@v4
         with:
-          name: pagai-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          name: ${{ steps.meta.outputs.apk_name }}
+          path: build/app/outputs/flutter-apk/${{ steps.meta.outputs.apk_name }}
 
-      - name: Publish to the Dead-Dog tag/release
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: Dead-Dog
-          name: Dead Dog
-          files: build/app/outputs/flutter-apk/app-debug.apk
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.release_title }}
+          files: build/app/outputs/flutter-apk/${{ steps.meta.outputs.apk_name }}
           generate_release_notes: false
           make_latest: true

@@ -93,6 +93,25 @@ Both this and the agent's own downloads are behind the same Settings
 toggle above. You can still sideload a model file by hand instead (see
 `assets/models/README.md`).
 
+## Installing / updating
+
+CI builds and publishes a debug APK to [GitHub Releases](../../releases)
+on every push to `main` (or a manual workflow dispatch). Every build gets
+its own release — a unique version tag (`v0.1.0-<commit>-<run>`) and an
+APK filename that bakes in the release codename and commit hash
+(`Pagai-<codename>-0.1.0-<commit>.apk`) — so re-running the workflow, or
+reusing a codename like "Dead Dog" for a later build, never overwrites
+or collides with a file you already downloaded. The newest release is
+always flagged `latest`. All builds share the same checked-in debug
+signing key (`android/app/debug.keystore`), so installing a new release
+over an old one is a normal in-place update, not a reinstall.
+
+To get automatic update notifications, add this repo to
+[Obtainium](https://github.com/ImranR98/Obtainium) as a GitHub source
+(`https://github.com/Zexolver/Claco`) — Obtainium tracks the repo's
+latest release and prompts you to update whenever a new one is
+published, same as it would for an F-Droid or Play Store app.
+
 ## Setup
 
 1. Install Flutter (stable channel) and Android SDK/NDK.
