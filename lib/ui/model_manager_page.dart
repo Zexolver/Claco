@@ -38,6 +38,7 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
   String _modelLoadError = '';
   bool _serviceRunning = false;
   bool _loadingModel = false;
+  DateTime? _loadStartedAt;
 
   bool _searching = false;
   String? _searchError;
@@ -90,13 +91,22 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
     final running = await _service.isRunning();
     final loaded = prefs.getBool(StorageKeys.modelLoaded) ?? false;
     final error = prefs.getString(StorageKeys.modelLoadError) ?? '';
+    final startedAtMs = prefs.getInt(StorageKeys.modelLoadStartedAt);
     if (!mounted) return;
     setState(() {
       _serviceRunning = running;
       _modelLoaded = loaded;
       _modelLoadError = error;
-      // Stop showing the spinner once the load attempt actually resolves.
-      if (_loadingModel && (loaded || error.isNotEmpty)) {
+      if (startedAtMs != null) {
+        _loadStartedAt = DateTime.fromMillisecondsSinceEpoch(startedAtMs);
+      }
+      // An attempt is in flight whenever the service is up but hasn't yet
+      // resolved to either loaded or errored — catches a reload triggered
+      // elsewhere, or one already running when this page opens, not just
+      // a tap on this page's own button.
+      if (running && !loaded && error.isEmpty) {
+        _loadingModel = true;
+      } else if (_loadingModel && (loaded || error.isNotEmpty)) {
         _loadingModel = false;
       }
     });
@@ -106,6 +116,7 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
     setState(() {
       _loadingModel = true;
       _modelLoadError = '';
+      _loadStartedAt = DateTime.now();
     });
     // An explicit tap always gets one fresh attempt, even if the last one
     // crashed the process and left the "attempt in progress" guard set.
@@ -116,6 +127,18 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
     } else {
       _service.invoke('reloadModel');
     }
+  }
+
+  String _loadingElapsedText() {
+    final startedAt = _loadStartedAt;
+    if (startedAt == null) return 'Loading…';
+    final elapsed = DateTime.now().difference(startedAt);
+    final secs = elapsed.inSeconds;
+    final suffix = secs < 20
+        ? ''
+        : ' — this can take up to a minute or two on the first load, or '
+            'on a slower device';
+    return 'Loading… ${secs}s$suffix';
   }
 
   bool _isDownloaded(String fileName) {
@@ -132,8 +155,11 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
     if (!mounted) return;
     setState(() => _selectedFileName = fileName);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Using $fileName. Restart the agent to load it.')),
+      SnackBar(content: Text('Loading $fileName…')),
     );
+    // Picking a model should just start using it — no separate "now go
+    // press Load" step for the user to have to find and remember.
+    await _loadModel();
   }
 
   Future<void> _download(
@@ -332,19 +358,22 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),
-                if (_loadingModel)
-                  const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else
+                if (!_loadingModel)
                   FilledButton(
                     onPressed: _loadModel,
                     child: Text(_modelLoaded ? 'Reload' : 'Load model'),
                   ),
               ],
             ),
+            if (_loadingModel) ...[
+              const SizedBox(height: 10),
+              const LinearProgressIndicator(),
+              const SizedBox(height: 6),
+              Text(
+                _loadingElapsedText(),
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
             if (_modelLoadError.isNotEmpty && !_loadingModel) ...[
               const SizedBox(height: 8),
               Text(

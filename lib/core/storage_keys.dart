@@ -55,6 +55,13 @@ class StorageKeys {
   /// clears this itself before every explicit retry.
   static const modelLoadAttemptPending = 'pocket_agent.model_load_pending';
 
+  /// int (epoch millis): when the in-flight load attempt started. Written
+  /// right before every call into [LlamaService.load], read by the UI to
+  /// show a live "Loading… Xs" instead of a bare, indefinite spinner —
+  /// loading a ~1GB model can take well over a minute on slower devices,
+  /// and with no elapsed-time feedback that reads as a hang.
+  static const modelLoadStartedAt = 'pocket_agent.model_load_started_at';
+
   /// Which model is currently selected, set by the Model Manager once a
   /// download finishes. Empty means "use the CLAUDE.md-recommended
   /// default" (see HuggingFaceService.recommendedRepoId/recommendedFile).

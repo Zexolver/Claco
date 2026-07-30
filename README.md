@@ -79,8 +79,11 @@ a limited data plan; already-downloaded files keep working either way.
 
 ### Getting the model
 
-Tap the "Loaded/Unloaded" chip in the app bar to open the **Model
-Manager**:
+The chat list shows a banner right at the top whenever the model isn't
+loaded yet — "Set up", "Load now", or "Retry" depending on whether it's
+never been downloaded, downloaded but not loaded, or failed — so you
+don't have to go hunting for the small "Loaded/Unloaded" chip in the app
+bar first. Both lead to the **Model Manager**:
 
 - **Recommended**: a one-tap download of the exact model CLAUDE.md
   specifies — `Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF`,
@@ -88,6 +91,12 @@ Manager**:
 - **Search Hugging Face**: look up any other repo; only its `.gguf`
   files are ever listed (that's the one format `flutter_llama` can
   load), each downloadable straight into the app's private storage.
+
+Picking or downloading a model loads it immediately — no separate step.
+Loading a ~1GB model natively can take anywhere from several seconds to
+a couple of minutes depending on the device, and both the banner and the
+Model Manager show live elapsed time while it's in progress instead of
+a bare spinner, so a slow load doesn't look like a hang.
 
 Both this and the agent's own downloads are behind the same Settings
 toggle above. You can still sideload a model file by hand instead (see

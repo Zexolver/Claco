@@ -49,13 +49,16 @@ void onServiceStart(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
 
   final notifications = NotificationService.instance;
-  await notifications.init();
+  // Kicked off now but not awaited yet — it has nothing to do with model
+  // loading, so running it concurrently with the (much slower) model load
+  // below shaves its time off the total instead of adding to it.
+  final notificationsReady = notifications.init();
   final sessions = SessionService.instance;
 
   if (service is AndroidServiceInstance) {
     service.setForegroundNotificationInfo(
       title: 'Pagai',
-      content: 'Idle',
+      content: 'Loading model…',
     );
   }
 
@@ -129,9 +132,17 @@ void onServiceStart(ServiceInstance service) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setBool(StorageKeys.stopRequested, false);
   await prefs.remove(StorageKeys.runningSessionId);
+  await prefs.setInt(
+    StorageKeys.modelLoadStartedAt,
+    DateTime.now().millisecondsSinceEpoch,
+  );
 
   final llama = LlamaService.instance;
+  // Independent of notification setup, so start it now rather than after
+  // awaiting notificationsReady above — the two run concurrently instead
+  // of the (much slower) model load adding on top of notification init.
   final loadError = await llama.load();
+  await notificationsReady;
   await prefs.setBool(StorageKeys.modelLoaded, loadError == null);
   await prefs.setString(StorageKeys.modelLoadError, loadError ?? '');
   var currentModelFileName = await llama.selectedModelFileName();
@@ -144,9 +155,13 @@ void onServiceStart(ServiceInstance service) async {
     if (newFileName == currentModelFileName && llama.isLoaded) return;
 
     await llama.unload();
+    final reloadPrefs = await SharedPreferences.getInstance();
+    await reloadPrefs.setInt(
+      StorageKeys.modelLoadStartedAt,
+      DateTime.now().millisecondsSinceEpoch,
+    );
     final err = await llama.load();
     currentModelFileName = newFileName;
-    final reloadPrefs = await SharedPreferences.getInstance();
     await reloadPrefs.setBool(StorageKeys.modelLoaded, err == null);
     await reloadPrefs.setString(StorageKeys.modelLoadError, err ?? '');
   });
