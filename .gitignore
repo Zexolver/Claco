@@ -17,6 +17,12 @@ android/app/release/
 android/key.properties
 *.jks
 *.keystore
+# Deliberately committed: a stable, non-secret debug-only signing key
+# (standard Android debug credentials) so every CI build shares one
+# certificate and can be installed as an update over the last, instead
+# of every release needing a full uninstall/reinstall. Never used for
+# release/Play Store signing.
+!android/app/debug.keystore
 
 # IDE
 .idea/

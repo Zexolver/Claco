@@ -12,8 +12,29 @@ if (localPropertiesFile.exists()) {
     }
 }
 
+// Only versionCode comes from the Flutter CLI (--build-number, a plain
+// integer - CI passes github.run_number so it strictly increases build
+// over build, which Android requires to accept an in-place update).
 def flutterVersionCode = localProperties.getProperty("flutter.versionCode") ?: "1"
-def flutterVersionName = localProperties.getProperty("flutter.versionName") ?: "0.1.0"
+
+// versionName is computed straight from git rather than piped through
+// --build-name, so there's no dependency on Flutter's CLI validating an
+// arbitrary "0.1.0-<hash>" string. Falls back to "dev" outside a git
+// checkout (e.g. a tarball) rather than failing the build.
+// Keep the "0.1.0" prefix in sync with pubspec.yaml's version field.
+def getGitShortHash = { ->
+    try {
+        def stdout = new ByteArrayOutputStream()
+        exec {
+            commandLine "git", "rev-parse", "--short=7", "HEAD"
+            standardOutput = stdout
+        }
+        return stdout.toString().trim()
+    } catch (Exception ignored) {
+        return "dev"
+    }
+}
+def appVersionName = "0.1.0-${getGitShortHash()}"
 
 android {
     namespace "com.pagai.app"
@@ -42,7 +63,26 @@ android {
         minSdkVersion 26
         targetSdkVersion 34
         versionCode flutterVersionCode.toInteger()
-        versionName flutterVersionName
+        versionName appVersionName
+    }
+
+    // Explicit, checked-in debug keystore (standard Android debug
+    // credentials) so every build is signed with the SAME certificate.
+    // AGP's implicit default debug keystore lives at ~/.android/debug.keystore
+    // and auto-generates a fresh random key if that file doesn't already
+    // exist - on GitHub's ephemeral runners it never does, so every past
+    // CI build was signed with a different, one-off certificate. Android
+    // refuses to install an "update" whose signing certificate doesn't
+    // match what's already on the device, which is why every release so
+    // far has needed a full uninstall/reinstall instead of an in-place
+    // update.
+    signingConfigs {
+        debug {
+            storeFile file("debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
     }
 
     buildTypes {

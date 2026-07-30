@@ -43,6 +43,18 @@ class StorageKeys {
   /// with no explanation.
   static const modelLoadError = 'pocket_agent.model_load_error';
 
+  /// bool: set just before calling the native loadModel and cleared right
+  /// after it returns (success or a catchable Dart error). If this is
+  /// still true when a service starts, the previous attempt crashed the
+  /// whole process instead of returning — most likely not enough free
+  /// RAM for the model, or a native/device incompatibility. Loading is
+  /// skipped in that case (with a clear error) rather than auto-retried,
+  /// since flutter_background_service's restart-on-crash would otherwise
+  /// retry it forever, crashing again each time and making the app look
+  /// like it won't reopen. The Model Manager's "Load model" button
+  /// clears this itself before every explicit retry.
+  static const modelLoadAttemptPending = 'pocket_agent.model_load_pending';
+
   /// Which model is currently selected, set by the Model Manager once a
   /// download finishes. Empty means "use the CLAUDE.md-recommended
   /// default" (see HuggingFaceService.recommendedRepoId/recommendedFile).

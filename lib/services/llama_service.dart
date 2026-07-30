@@ -72,6 +72,16 @@ class LlamaService {
     final sanityError = await _sanityCheck(file);
     if (sanityError != null) return sanityError;
 
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(StorageKeys.modelLoadAttemptPending) ?? false) {
+      return 'The last attempt to load this model crashed the app — most '
+          'likely not enough free RAM on this device for a model this '
+          'size, or a native/device incompatibility. Close other apps and '
+          'use the Model Manager\'s "Load model" button to try again, or '
+          'pick a smaller model there.';
+    }
+
+    await prefs.setBool(StorageKeys.modelLoadAttemptPending, true);
     try {
       final ok = await _llama.loadModel(
         LlamaConfig(
@@ -86,6 +96,11 @@ class LlamaService {
     } catch (e) {
       _loaded = false;
       return 'Failed to load model: $e';
+    } finally {
+      // Only reached if loadModel returned or threw normally — i.e. it
+      // didn't crash the process. A native crash skips this entirely,
+      // which is exactly the signal load() checks for above next time.
+      await prefs.setBool(StorageKeys.modelLoadAttemptPending, false);
     }
   }
 

@@ -107,6 +107,10 @@ class _ModelManagerPageState extends State<ModelManagerPage> {
       _loadingModel = true;
       _modelLoadError = '';
     });
+    // An explicit tap always gets one fresh attempt, even if the last one
+    // crashed the process and left the "attempt in progress" guard set.
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(StorageKeys.modelLoadAttemptPending);
     if (!_serviceRunning) {
       await _service.startService();
     } else {
